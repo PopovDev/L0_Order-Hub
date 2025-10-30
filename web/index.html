@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Order Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="container">
+        <header class="header">
+            <h1>Order Hub</h1>
+            <p>Система отслеживания заказов в реальном времени</p>
+        </header>
+
+        <main class="main-content">
+            <div class="search-box">
+                <input type="text" id="orderId" placeholder="Введите ID заказа">
+                <button onclick="fetchOrder()">Найти</button>
+            </div>
+
+            <div id="result"></div>
+        </main>
+
+        <footer class="footer">
+            <p>Powered by Go, NATS & PostgreSQL</p>
+        </footer>
+    </div>
+
+<script>
+    async function fetchOrder() {
+        const orderId = document.getElementById('orderId').value;
+        const resultDiv = document.getElementById('result');
+
+        if (!orderId) {
+            resultDiv.innerHTML = '<div class="order-card error-card"><div class="card-header">⚠️ Ошибка</div><div class="card-body">Пожалуйста, введите ID заказа.</div></div>';
+            return;
+        }
+
+        resultDiv.innerHTML = '<div class="order-card loading-card"><div class="card-header">⏳ Загрузка</div><div class="card-body">Ищу заказ...</div></div>';
+
+        try {
+            const response = await fetch(`/order/${orderId}`);
+            if (!response.ok) {
+                throw new Error(`Заказ не найден (статус ${response.status})`);
+            }
+            const orderData = await response.json();
+            displayOrder(orderData);
+            document.getElementById('orderId').value = '';
+        } catch (error) {
+            resultDiv.innerHTML = `<div class="order-card error-card"><div class="card-header">❌ Ошибка</div><div class="card-body">${error.message}</div></div>`;
+        }
+    }
+
+    function displayOrder(order) {
+        const resultDiv = document.getElementById('result');
+        const paymentDate = new Date(order.payment.payment_dt * 1000).toLocaleString('ru-RU');
+
+        resultDiv.innerHTML = `
+            <div class="order-card">
+                <div class="card-header">📦 Основная информация</div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr><td>ID заказа</td><td><code>${order.order_uid}</code></td></tr>
+                        <tr><td>Трек-номер</td><td>${order.track_number}</td></tr>
+                        <tr><td>Склад отгрузки</td><td>${order.entry}</td></tr>
+                        <tr><td>Дата создания</td><td>${new Date(order.date_created).toLocaleString('ru-RU')}</td></tr>
+                        <tr><td>Клиент</td><td>${order.customer_id}</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="order-card">
+                <div class="card-header">🚚 Доставка</div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr><td>Служба доставки</td><td>${order.delivery_service}</td></tr>
+                        <tr><td>Получатель</td><td>${order.delivery.name}</td></tr>
+                        <tr><td>Телефон</td><td>${order.delivery.phone}</td></tr>
+                        <tr><td>Email</td><td>${order.delivery.email}</td></tr>
+                        <tr><td>Адрес</td><td>${order.delivery.city}, ${order.delivery.address}</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="order-card">
+                <div class="card-header">💳 Оплата</div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr><td>Провайдер</td><td>${order.payment.provider}</td></tr>
+                        <tr><td>Банк</td><td>${order.payment.bank}</td></tr>
+                        <tr><td>Итого к оплате</td><td><strong class="highlight">${order.payment.amount} ${order.payment.currency}</strong></td></tr>
+                        <tr><td>Дата оплаты</td><td>${paymentDate}</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="order-card">
+                <div class="card-header">🛍️ Товары в заказе</div>
+                <div class="card-body">
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Наименование</th>
+                                <th>Бренд</th>
+                                <th>Цена</th>
+                                <th>Скидка</th>
+                                <th>Итого</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${order.items.map(item => `
+                                <tr>
+                                    <td>${item.name}</td>
+                                    <td>${item.brand}</td>
+                                    <td>${item.price} ${order.payment.currency}</td>
+                                    <td>-${item.sale}%</td>
+                                    <td><strong>${item.total_price} ${order.payment.currency}</strong></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+</script>
+
+<style>
+    :root {
+        --bg-primary: #0d1117;
+        --bg-secondary: #161b22;
+        --bg-tertiary: #21262d;
+        --border-color: #30363d;
+        --text-primary: #c9d1d9;
+        --text-secondary: #8b949e;
+        --accent-cyan: #58a6ff;
+        --accent-green: #3fb950;
+        --accent-red: #f85149;
+        --font-mono: 'Roboto Mono', monospace;
+    }
+
+    body {
+        font-family: var(--font-mono);
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        margin: 0;
+        padding: 20px;
+        line-height: 1.6;
+    }
+
+    .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--accent-cyan);
+        margin: 0;
+        text-shadow: 0 0 10px var(--accent-cyan);
+    }
+
+    .header p {
+        color: var(--text-secondary);
+        font-size: 1rem;
+        margin-top: 5px;
+    }
+
+    .main-content {
+        flex-grow: 1;
+    }
+
+    .search-box {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 30px;
+    }
+
+    .search-box input[type="text"] {
+        flex-grow: 1;
+        padding: 15px;
+        background-color: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-size: 16px;
+        font-family: var(--font-mono);
+    }
+
+    .search-box input[type="text"]::placeholder {
+        color: var(--text-secondary);
+    }
+
+    .search-box button {
+        padding: 15px 25px;
+        background-color: var(--accent-cyan);
+        color: var(--bg-primary);
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+    }
+
+    .search-box button:hover {
+        background-color: #79c0ff;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(88, 166, 255, 0.4);
+    }
+
+    .order-card {
+        background-color: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        margin-bottom: 20px;
+        overflow: hidden;
+        animation: fadeIn 0.5s ease-in-out;
+    }
+
+    .card-header {
+        background-color: var(--bg-tertiary);
+        padding: 12px 20px;
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--text-primary);
+    }
+
+    .card-body {
+        padding: 20px;
+    }
+
+    .info-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .info-table td {
+        padding: 8px 0;
+        vertical-align: top;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .info-table td:first-child {
+        font-weight: 700;
+        color: var(--text-secondary);
+        width: 40%;
+    }
+
+    .info-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+
+    .items-table th, .items-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .items-table th {
+        background-color: var(--bg-tertiary);
+        font-weight: 700;
+    }
+
+    .highlight {
+        color: var(--accent-green);
+    }
+
+    .error-card .card-header {
+        color: var(--accent-red);
+    }
+
+    .loading-card .card-header {
+        color: var(--accent-cyan);
+    }
+
+    .footer {
+        text-align: center;
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    code {
+        background-color: var(--bg-tertiary);
+        padding: 2px 5px;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+</body>
+</html>
