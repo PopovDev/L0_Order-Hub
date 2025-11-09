@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 121212
+      POSTGRES_DB: orders_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  nats:
+    image: nats-streaming:latest
+    container_name: nats_streaming
+    command: ["-cid", "test-cluster", "-sd", "MEMORY"]
+    ports:
+      - "4222:4222"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
